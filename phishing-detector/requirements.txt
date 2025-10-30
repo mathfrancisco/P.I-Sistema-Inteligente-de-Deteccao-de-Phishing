@@ -1,0 +1,32 @@
+# ============================================
+# SISTEMA DE DETECÇÃO DE PHISHING
+# Grings & Filhos LTDA
+# ============================================
+# Python 3.13 compatível
+
+# Core ML & Data Science
+scikit-learn>=1.3.0
+pandas>=2.0.0
+numpy>=1.24.0
+
+# Natural Language Processing
+nltk>=3.8
+
+# Web Interface
+streamlit>=1.28.0
+
+# Visualizations
+plotly>=5.18.0
+matplotlib>=3.8.0
+seaborn>=0.13.0
+
+# Utilities
+python-dotenv>=1.0.0
+joblib>=1.3.0
+
+# Testing (opcional para desenvolvimento)
+pytest>=7.4.0
+pytest-cov>=4.1.0
+
+# Type hints (opcional mas recomendado)
+mypy>=1.7.0python --version
