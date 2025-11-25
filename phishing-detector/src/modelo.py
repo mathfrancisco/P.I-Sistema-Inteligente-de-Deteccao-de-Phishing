@@ -48,13 +48,13 @@ class DetectorPhishing:
 
         # Modelo de ML - OTIMIZADO para melhor convergência
         self.modelo = LogisticRegression(
-            C=1.0,  # Regularização
-            max_iter=2000,  # AUMENTADO de 1000 para 2000
-            solver='saga',  # MUDADO de lbfgs para saga (mais rápido para datasets grandes)
-            random_state=42,  # Reprodutibilidade
-            class_weight='balanced',  # Balancear classes automaticamente
-            n_jobs=-1,  # Usar todos os cores do CPU
-            verbose=0  # Silenciar avisos durante treinamento
+        C=1.0,
+        max_iter=1000,  # Reduzir de 2000 para 1000
+        solver='liblinear',  # ⚡ MUDANÇA CRÍTICA - 3-5x mais rápido
+        random_state=42,
+        class_weight='balanced',
+        n_jobs=-1,
+        verbose=0
         )
 
         # Flags de estado
