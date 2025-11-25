@@ -9,6 +9,7 @@ import logging
 from typing import List
 import nltk
 from nltk.corpus import stopwords
+from .cache import CachePreprocessamento
 
 logger = logging.getLogger(__name__)
 
@@ -36,6 +37,7 @@ class PreprocessadorTexto:
         """
         self.idioma = idioma
         self.remover_stopwords = remover_stopwords
+        self.cache = CachePreprocessamento()
 
         # Carregar stopwords
         if remover_stopwords:
@@ -142,42 +144,32 @@ class PreprocessadorTexto:
         return ' '.join(palavras_filtradas)
 
     def processar(self, texto: str) -> str:
-        """
-        Pipeline completo de pré-processamento.
+    """Pipeline com cache."""
+    if not texto or not isinstance(texto, str):
+        return ""
+    
+    # ⚡ Verificar cache primeiro
+    resultado_cache = self.cache.obter(texto)
+    if resultado_cache is not None:
+        return resultado_cache
+    
+    # Processar normalmente
+    texto_processado = self._processar_sem_cache(texto)
+    
+    # Salvar no cache
+    self.cache.adicionar(texto, texto_processado)
+    
+    return texto_processado
 
-        Etapas:
-        1. Converter para minúsculas
-        2. Limpar URLs
-        3. Remover caracteres especiais
-        4. Normalizar espaços
-        5. Remover stopwords (opcional)
-
-        Args:
-            texto: Texto bruto do email
-
-        Returns:
-            Texto processado e limpo
-        """
-        if not texto or not isinstance(texto, str):
-            logger.warning("⚠️  Texto inválido recebido para processamento")
-            return ""
-
-        # 1. Lowercase
-        texto = texto.lower()
-
-        # 2. Limpar URLs
-        texto = self.limpar_url(texto)
-
-        # 3. Remover caracteres especiais
-        texto = self.limpar_caracteres_especiais(texto)
-
-        # 4. Normalizar espaços
-        texto = self.normalizar_espacos(texto)
-
-        # 5. Remover stopwords
-        texto = self.remover_stopwords_texto(texto)
-
-        return texto
+def _processar_sem_cache(self, texto: str) -> str:
+    """Lógica original de processamento."""
+    # Mover toda a lógica atual de processar() para cá
+    texto = texto.lower()
+    texto = self.limpar_url(texto)
+    texto = self.limpar_caracteres_especiais(texto)
+    texto = self.normalizar_espacos(texto)
+    texto = self.remover_stopwords_texto(texto)
+    return texto
 
     def processar_lote(self, textos: List[str]) -> List[str]:
         """
