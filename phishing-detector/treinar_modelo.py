@@ -37,7 +37,7 @@ def main():
     parser.add_argument('--idioma', type=str, default='english',
                         choices=['english', 'portuguese'],
                         help='Idioma para pré-processamento')
-    parser.add_argument('--max-features', type=int, default=3000,
+    parser.add_argument('--max-features', type=int, default=1500,
                         help='Número máximo de features TF-IDF')
     parser.add_argument('--test-size', type=float, default=0.2,
                         help='Proporção de dados para teste (0.0 a 1.0)')
