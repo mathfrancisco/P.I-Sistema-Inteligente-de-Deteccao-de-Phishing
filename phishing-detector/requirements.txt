@@ -2,6 +2,7 @@
 # SISTEMA DE DETECÇÃO DE PHISHING
 # Grings & Filhos LTDA
 # ============================================
+
 # Python 3.13 compatível
 
 # Core ML & Data Science
@@ -29,4 +30,4 @@ pytest>=7.4.0
 pytest-cov>=4.1.0
 
 # Type hints (opcional mas recomendado)
-mypy>=1.7.0python --version
+mypy>=1.7.0

@@ -46,7 +46,7 @@ class PreprocessadorTexto:
                 self.stopwords = set(stopwords.words(idioma))
                 logger.info(f"✅ Stopwords carregados ({idioma}): {len(self.stopwords)} palavras")
             except:
-                logger.warning(f"⚠️  Não foi possível carregar stopwords para '{idioma}'")
+                logger.warning(f"⚠️ Não foi possível carregar stopwords para '{idioma}'")
                 self.stopwords = set()
         else:
             self.stopwords = set()
@@ -145,50 +145,59 @@ class PreprocessadorTexto:
         return ' '.join(palavras_filtradas)
 
     def processar(self, texto: str) -> str:
-    """Pipeline com cache."""
-    if not texto or not isinstance(texto, str):
-        return ""
-    
-    # ⚡ Verificar cache primeiro
-    resultado_cache = self.cache.obter(texto)
-    if resultado_cache is not None:
-        return resultado_cache
-    
-    # Processar normalmente
-    texto_processado = self._processar_sem_cache(texto)
-    
-    # Salvar no cache
-    self.cache.adicionar(texto, texto_processado)
-    
-    return texto_processado
+        """Pipeline com cache."""
+        if not texto or not isinstance(texto, str):
+            return ""
+
+        # ⚡ Verificar cache primeiro
+        resultado_cache = self.cache.obter(texto)
+        if resultado_cache is not None:
+            return resultado_cache
+
+        # Processar normalmente
+        texto_processado = self._processar_sem_cache(texto)
+
+        # Salvar no cache
+        self.cache.adicionar(texto, texto_processado)
+
+        return texto_processado
 
     def _processar_sem_cache(self, texto: str) -> str:
-    """Lógica original de processamento."""
-    # Mover toda a lógica atual de processar() para cá
-    texto = texto.lower()
-    texto = self.limpar_url(texto)
-    texto = self.limpar_caracteres_especiais(texto)
-    texto = self.normalizar_espacos(texto)
-    texto = self.remover_stopwords_texto(texto)
-    return texto
+        """Lógica original de processamento."""
+        # Converter para minúsculas
+        texto = texto.lower()
+
+        # Limpar URLs
+        texto = self.limpar_url(texto)
+
+        # Remover caracteres especiais
+        texto = self.limpar_caracteres_especiais(texto)
+
+        # Normalizar espaços
+        texto = self.normalizar_espacos(texto)
+
+        # Remover stopwords
+        texto = self.remover_stopwords_texto(texto)
+
+        return texto
 
     def processar_lote(self, textos: List[str], usar_paralelo: bool = True) -> List[str]:
-    """Processa múltiplos textos em paralelo."""
-    logger.info(f"Processando lote de {len(textos)} textos...")
-    
-    if not usar_paralelo or len(textos) < 100:
-        # Para lotes pequenos, processar sequencialmente
-        return [self.processar(texto) for texto in textos]
-    
-    # ⚡ Processamento paralelo para lotes grandes
-    num_workers = max(1, cpu_count() - 1)  # Deixar 1 core livre
-    logger.info(f"🚀 Usando {num_workers} processos paralelos")
-    
-    with Pool(num_workers) as pool:
-        textos_processados = pool.map(self.processar, textos)
-    
-    logger.info("✅ Lote processado com sucesso!")
-    return textos_processados
+        """Processa múltiplos textos em paralelo."""
+        logger.info(f"Processando lote de {len(textos)} textos...")
+
+        if not usar_paralelo or len(textos) < 100:
+            # Para lotes pequenos, processar sequencialmente
+            return [self.processar(texto) for texto in textos]
+
+        # ⚡ Processamento paralelo para lotes grandes
+        num_workers = max(1, cpu_count() - 1)  # Deixar 1 core livre
+        logger.info(f"🚀 Usando {num_workers} processos paralelos")
+
+        with Pool(num_workers) as pool:
+            textos_processados = pool.map(self.processar, textos)
+
+        logger.info("✅ Lote processado com sucesso!")
+        return textos_processados
 
 
 # Função de conveniência para uso rápido

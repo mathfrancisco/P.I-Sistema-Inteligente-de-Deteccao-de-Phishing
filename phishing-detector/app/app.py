@@ -1,369 +1,362 @@
 """
-Aplicação web principal do Sistema de Detecção de Phishing.
-Interface desenvolvida com Streamlit para análise de emails.
+Interface Streamlit para o Sistema de Detecção de Phishing
+Grings & Filhos LTDA
 """
 
-import sys
 import os
+import sys
 import streamlit as st
 from datetime import datetime
 
-# Adicionar src ao path
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(__file__)), 'src'))
+# ⚡ CORREÇÃO: Adicionar o diretório raiz ao path
+# Obtém o diretório do app (app/) e volta para a raiz (phishing-detector/)
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, BASE_DIR)
 
+# Agora pode importar normalmente
 from src.modelo import DetectorPhishing
-from src.features import criar_features_basicas
-import config
+from src.utils import carregar_modelo
 
-# ============================================
-# CONFIGURAÇÃO DA PÁGINA
-# ============================================
-st.set_page_config(**config.PAGE_CONFIG)
+# Configuração da página
+st.set_page_config(
+    page_title="Detector de Phishing - Grings & Filhos",
+    page_icon="🛡️",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
 
-# Aplicar CSS customizado
-st.markdown(config.CUSTOM_CSS, unsafe_allow_html=True)
+# CSS customizado
+st.markdown("""
+<style>
+    .main-header {
+        font-size: 2.5rem;
+        color: #1f77b4;
+        text-align: center;
+        margin-bottom: 1rem;
+    }
+    .sub-header {
+        font-size: 1.2rem;
+        color: #666;
+        text-align: center;
+        margin-bottom: 2rem;
+    }
+    .result-box {
+        padding: 1.5rem;
+        border-radius: 10px;
+        margin: 1rem 0;
+    }
+    .phishing-box {
+        background-color: #ffe6e6;
+        border-left: 5px solid #ff4444;
+    }
+    .safe-box {
+        background-color: #e6f7e6;
+        border-left: 5px solid #44ff44;
+    }
+    .metric-card {
+        background-color: #f0f2f6;
+        padding: 1rem;
+        border-radius: 5px;
+        text-align: center;
+    }
+</style>
+""", unsafe_allow_html=True)
 
-
-# ============================================
-# FUNÇÕES AUXILIARES
-# ============================================
 
 @st.cache_resource
-def carregar_modelo():
-    """
-    Carrega o modelo treinado (com cache para evitar recarregar).
-    """
-    try:
-        if not os.path.exists(config.MODELO_PATH):
-            st.error(f"❌ Modelo não encontrado em: {config.MODELO_PATH}")
-            st.info("💡 Execute primeiro: `python treinar_modelo.py --criar-exemplo`")
-            st.stop()
+def carregar_modelo_cache():
+    """Carrega o modelo uma única vez e mantém em cache."""
+    caminho_modelo = os.path.join(BASE_DIR, 'modelo', 'detector_phishing.pkl')
 
-        detector = DetectorPhishing.carregar(config.MODELO_PATH)
-        return detector
-    except Exception as e:
-        st.error(f"❌ Erro ao carregar modelo: {str(e)}")
+    if not os.path.exists(caminho_modelo):
+        st.error(f"❌ Modelo não encontrado em: {caminho_modelo}")
+        st.info("💡 Execute 'python treinar_modelo.py' primeiro para treinar o modelo")
         st.stop()
 
+    try:
+        detector, metadata = carregar_modelo(caminho_modelo)
+        return detector  # Retornar apenas o detector, não a tupla
+    except Exception as e:
+        st.error(f"❌ Erro ao carregar modelo: {e}")
+        st.stop()
 
-def renderizar_header():
-    """
-    Renderiza o cabeçalho da aplicação.
-    """
-    st.markdown(f"""
-    <div class="header-container">
-        <div class="header-title">{config.TITULO_APP}</div>
-        <div class="header-subtitle">{config.SUBTITULO_APP}</div>
-        <div style="margin-top: 1rem; font-size: 0.9rem;">
-            {config.EMPRESA_NOME} | CNPJ: {config.EMPRESA_CNPJ}
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
+def exibir_resultado(resultado):
+    """Exibe o resultado da análise de forma visual."""
 
-
-def renderizar_barra_confianca(probabilidade, nivel_risco):
-    """
-    Renderiza barra visual de confiança.
-
-    Args:
-        probabilidade: Valor entre 0 e 1
-        nivel_risco: 'BAIXO', 'MÉDIO' ou 'ALTO'
-    """
-    percentual = int(probabilidade * 100)
-
-    # Definir cor baseada no risco
-    cores = {
-        'BAIXO': '#28a745',
-        'MÉDIO': '#ffc107',
-        'ALTO': '#dc3545'
-    }
-    cor = cores.get(nivel_risco, '#6c757d')
-
-    st.markdown(f"""
-    <div style="margin: 1.5rem 0;">
-        <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
-            <span style="font-weight: bold;">Confiança da Análise:</span>
-            <span style="font-weight: bold; color: {cor};">{percentual}%</span>
-        </div>
-        <div class="barra-confianca">
-            <div class="barra-preenchimento" style="width: {percentual}%; background-color: {cor};">
-                {percentual}%
-            </div>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
-
-
-def renderizar_resultado(resultado):
-    """
-    Renderiza o resultado da análise de forma visual.
-
-    Args:
-        resultado: Dicionário retornado por detector.analisar_email()
-    """
-    nivel_risco = resultado['nivel_risco']
     classificacao = resultado['classificacao']
     confianca = resultado['confianca']
+    nivel_risco = resultado['nivel_risco']
 
-    recom = config.RECOMENDACOES[nivel_risco]
+    # Escolher estilo baseado na classificação
+    if classificacao == "PHISHING":
+        box_class = "phishing-box"
+        emoji = "⚠️"
+        cor = "#ff4444"
+    else:
+        box_class = "safe-box"
+        emoji = "✅"
+        cor = "#44ff44"
 
-    # Escolher classe CSS baseada no risco
-    classe_css = {
-        'BAIXO': 'resultado-seguro',
-        'MÉDIO': 'resultado-medio',
-        'ALTO': 'resultado-phishing'
-    }[nivel_risco]
-
-    # Renderizar card de resultado
+    # Box principal com resultado
     st.markdown(f"""
-    <div class="{classe_css}">
-        <h2 style="margin: 0;">{recom['emoji']} {recom['titulo']}</h2>
-        <h3 style="margin-top: 0.5rem;">Classificação: {classificacao}</h3>
+    <div class="result-box {box_class}">
+        <h2 style="margin:0;">{emoji} {classificacao}</h2>
+        <p style="font-size:1.2rem; margin:0.5rem 0;">
+            <strong>Nível de Risco:</strong> {nivel_risco}
+        </p>
+        <p style="font-size:1.1rem; margin:0;">
+            <strong>Confiança:</strong> {confianca * 100:.1f}%
+        </p>
     </div>
     """, unsafe_allow_html=True)
 
-    # Barra de confiança
-    renderizar_barra_confianca(confianca, nivel_risco)
-
-    # Recomendações
-    st.markdown(f"### {recom['emoji']} Ações Recomendadas:")
-    for acao in recom['acoes']:
-        st.markdown(f"- {acao}")
-
-
-def renderizar_indicadores(features):
-    """
-    Renderiza indicadores detectados no email.
-
-    Args:
-        features: Dicionário com features extraídas
-    """
-    st.markdown("### 📊 Indicadores Detectados")
-
-    col1, col2 = st.columns(2)
-
-    indicadores_detectados = []
-
-    # Verificar cada indicador
-    if features['palavras_urgencia'] > 0:
-        indicadores_detectados.append('urgencia')
-
-    if features['num_urls'] > 0:
-        indicadores_detectados.append('urls')
-
-    if features['palavras_financeiras'] > 0:
-        indicadores_detectados.append('financeiro')
-
-    if features['prop_maiusculas'] > 0.3:
-        indicadores_detectados.append('maiusculas')
-
-    if features['num_especiais'] > 5:
-        indicadores_detectados.append('especiais')
-
-    # Renderizar indicadores
-    if indicadores_detectados:
-        for i, ind_key in enumerate(indicadores_detectados):
-            ind = config.INDICADORES_PHISHING[ind_key]
-            col = col1 if i % 2 == 0 else col2
-
-            with col:
-                st.markdown(f"""
-                <div class="indicador">
-                    <div class="indicador-titulo">{ind['emoji']} {ind['nome']}</div>
-                    <div class="indicador-descricao">{ind['descricao']}</div>
-                </div>
-                """, unsafe_allow_html=True)
-    else:
-        st.info("✅ Nenhum indicador suspeito detectado")
-
-
-def renderizar_estatisticas(features):
-    """
-    Renderiza estatísticas do email analisado.
-
-    Args:
-        features: Dicionário com features
-    """
-    col1, col2, col3, col4 = st.columns(4)
+    # Métricas adicionais
+    col1, col2, col3 = st.columns(3)
 
     with col1:
-        st.metric("📏 Tamanho", f"{features['tamanho_texto']} palavras")
+        st.metric(
+            label="Classificação",
+            value=classificacao,
+            delta="Atenção!" if classificacao == "PHISHING" else "Seguro"
+        )
 
     with col2:
-        st.metric("🔗 URLs", features['num_urls'])
+        st.metric(
+            label="Confiança",
+            value=f"{confianca * 100:.1f}%"
+        )
 
     with col3:
-        st.metric("⚡ Especiais", features['num_especiais'])
+        st.metric(
+            label="Risco",
+            value=nivel_risco
+        )
 
-    with col4:
-        maiusc_perc = int(features['prop_maiusculas'] * 100)
-        st.metric("📢 Maiúsculas", f"{maiusc_perc}%")
-
-
-def renderizar_sidebar():
-    """
-    Renderiza barra lateral com informações e exemplos.
-    """
-    with st.sidebar:
-        st.markdown("## 📖 Sobre o Sistema")
-
-        st.markdown("""
-        Este sistema utiliza **Inteligência Artificial** para detectar 
-        tentativas de phishing em emails corporativos.
-
-        ### 🧠 Tecnologia
-        - Machine Learning (Regressão Logística)
-        - Processamento de Linguagem Natural
-        - Análise de padrões suspeitos
-
-        ### 🎯 Precisão
-        - **89.5%** de acurácia geral
-        - **91.2%** de precisão em phishing
-        - **87.3%** de taxa de detecção
-        """)
-
-        st.markdown("---")
-
-        st.markdown("### 📧 Exemplos de Teste")
-
-        if st.button("📌 Carregar Email de Phishing"):
-            st.session_state.exemplo_texto = config.EXEMPLO_EMAIL_PHISHING
-            st.rerun()
-
-        if st.button("📌 Carregar Email Legítimo"):
-            st.session_state.exemplo_texto = config.EXEMPLO_EMAIL_LEGITIMO
-            st.rerun()
-
-        st.markdown("---")
-
-        st.markdown(f"""
-        ### 👨‍💻 Desenvolvimento
-        **Projeto Integrado**  
-        IA + Segurança da Informação
-
-        **Desenvolvido por:**  
-        {config.PROJETO_AUTOR}
-
-        **Empresa:**  
-        {config.EMPRESA_NOME}
-        """)
-
-        st.markdown("---")
-
-        st.markdown(f"""
-        <div style="text-align: center; font-size: 0.8rem; color: #7f8c8d;">
-            Versão 1.0.0 | {datetime.now().year}
-        </div>
-        """, unsafe_allow_html=True)
+    # Indicadores visuais de phishing
+    if 'indicadores_phishing' in resultado and resultado['indicadores_phishing']:
+        st.warning("🚨 **Indicadores de Phishing Detectados:**")
+        for indicador in resultado['indicadores_phishing']:
+            st.markdown(f"- {indicador}")
 
 
-# ============================================
-# APLICAÇÃO PRINCIPAL
-# ============================================
+def salvar_analise(texto, resultado):
+    """Salva uma análise no histórico."""
+    try:
+        from datetime import datetime
+        import json
+
+        # Criar registro da análise
+        analise = {
+            'timestamp': datetime.now().isoformat(),
+            'texto': texto[:100] + '...' if len(texto) > 100 else texto,
+            'classificacao': resultado['classificacao'],
+            'confianca': resultado['confianca'],
+            'nivel_risco': resultado['nivel_risco']
+        }
+
+        # Obter histórico atual
+        try:
+            historico_json = st.session_state.get('historico', '[]')
+            historico = json.loads(historico_json) if isinstance(historico_json, str) else historico_json
+        except:
+            historico = []
+
+        # Adicionar nova análise no início
+        historico.insert(0, analise)
+
+        # Manter apenas últimas 50 análises
+        historico = historico[:50]
+
+        # Salvar no session state
+        st.session_state['historico'] = json.dumps(historico)
+
+        return True
+    except Exception as e:
+        st.error(f"Erro ao salvar análise: {e}")
+        return False
+
+
+def obter_historico():
+    """Obtém o histórico de análises."""
+    try:
+        import json
+        historico_json = st.session_state.get('historico', '[]')
+        return json.loads(historico_json) if isinstance(historico_json, str) else historico_json
+    except:
+        return []
+
 
 def main():
-    """
-    Função principal da aplicação.
-    """
-    # Renderizar elementos visuais
-    renderizar_header()
-    renderizar_sidebar()
+    """Função principal da aplicação."""
+
+    # Inicializar session state
+    if 'historico' not in st.session_state:
+        st.session_state['historico'] = '[]'
+
+    # Cabeçalho
+    st.markdown('<h1 class="main-header">🛡️ Sistema de Detecção de Phishing</h1>', unsafe_allow_html=True)
+    st.markdown('<p class="sub-header">Grings & Filhos LTDA - Protegendo sua comunicação</p>', unsafe_allow_html=True)
 
     # Carregar modelo
-    detector = carregar_modelo()
+    with st.spinner("🔄 Carregando modelo de IA..."):
+        detector = carregar_modelo_cache()
 
-    # Instruções
-    with st.expander("📋 Como Usar", expanded=False):
-        st.markdown(config.INSTRUCOES)
+    # Sidebar com informações
+    with st.sidebar:
+        st.header("ℹ️ Sobre o Sistema")
+        st.info("""
+        Este sistema utiliza **Machine Learning** para detectar emails de phishing.
+        
+        **Características:**
+        - 🎯 Acurácia: ~94%
+        - ⚡ Análise em tempo real
+        - 🔍 Detecção de padrões suspeitos
+        """)
 
-    # Área principal de análise
-    st.markdown("## 🔍 Análise de Email")
+        st.header("📊 Estatísticas do Modelo")
+        if hasattr(detector, 'metricas') and detector.metricas:
+            metricas = detector.metricas
+            st.metric("Acurácia", f"{metricas.get('acuracia_teste', 0) * 100:.2f}%")
+            st.metric("Precisão", f"{metricas.get('precisao', 0) * 100:.2f}%")
+            st.metric("Recall", f"{metricas.get('recall', 0) * 100:.2f}%")
 
-    # Inicializar estado da sessão
-    if 'exemplo_texto' not in st.session_state:
-        st.session_state.exemplo_texto = ""
+        st.header("🛠️ Como Usar")
+        st.markdown("""
+        1. Cole o texto do email suspeito
+        2. Clique em **Analisar Email**
+        3. Veja o resultado da análise
+        """)
 
-    # Área de texto para input
-    texto_email = st.text_area(
-        "Cole o texto do email suspeito abaixo:",
-        value=st.session_state.exemplo_texto,
-        height=250,
-        placeholder="Cole aqui o conteúdo completo do email que deseja analisar...",
-        help="Copie todo o texto do email, incluindo assunto, remetente e corpo da mensagem"
-    )
+        # Histórico de análises
+        st.header("📋 Histórico Recente")
+        historico = obter_historico()
 
-    # Limpar exemplo após uso
-    if st.session_state.exemplo_texto:
-        st.session_state.exemplo_texto = ""
+        if historico:
+            # Mostrar estatísticas do histórico
+            total = len(historico)
+            phishing_count = sum(1 for h in historico if h['classificacao'] == 'PHISHING')
+            legitimo_count = total - phishing_count
 
-    # Botão de análise
-    col1, col2, col3 = st.columns([1, 2, 1])
-    with col2:
-        analisar_btn = st.button("🔍 Analisar Email", type="primary", use_container_width=True)
+            col1, col2 = st.columns(2)
+            with col1:
+                st.metric("Total", total)
+            with col2:
+                st.metric("Phishing", phishing_count)
 
-    # Processar análise
-    if analisar_btn:
-        if not texto_email or len(texto_email.strip()) < 10:
-            st.warning("⚠️ Por favor, cole um email válido para análise (mínimo 10 caracteres)")
+            st.markdown("---")
+
+            # Mostrar últimas 5 análises
+            st.markdown("**Últimas análises:**")
+            for i, analise in enumerate(historico[:5]):
+                emoji = "🚨" if analise['classificacao'] == 'PHISHING' else "✅"
+                confianca = analise['confianca'] * 100
+
+                with st.expander(f"{emoji} {analise['texto'][:40]}...", expanded=False):
+                    st.markdown(f"**Classificação:** {analise['classificacao']}")
+                    st.markdown(f"**Confiança:** {confianca:.1f}%")
+                    st.markdown(f"**Risco:** {analise['nivel_risco']}")
+                    st.markdown(f"**Data:** {analise['timestamp'][:19]}")
+
+            # Botão para limpar histórico
+            if st.button("🗑️ Limpar Histórico", use_container_width=True):
+                st.session_state['historico'] = '[]'
+                st.rerun()
         else:
-            with st.spinner("🔄 Analisando email... Aguarde alguns segundos."):
-                try:
-                    # Fazer análise
-                    resultado = detector.analisar_email(texto_email, mostrar_features=True)
+            st.info("Nenhuma análise realizada ainda.")
 
-                    # Renderizar resultado
-                    st.markdown("---")
-                    st.markdown("## 📊 Resultado da Análise")
+    # Área principal
+    st.header("📧 Análise de Email")
 
-                    renderizar_resultado(resultado)
+    # Tabs para diferentes modos de entrada
+    tab1, tab2 = st.tabs(["✍️ Inserir Texto", "📋 Exemplos"])
 
-                    st.markdown("---")
+    with tab1:
+        # Área de texto para input
+        texto_email = st.text_area(
+            "Cole o conteúdo do email aqui:",
+            height=200,
+            placeholder="Exemplo: URGENT! Your account will be suspended. Click here to verify..."
+        )
 
-                    # Estatísticas
-                    renderizar_estatisticas(resultado['features'])
+        col1, col2, col3 = st.columns([1, 1, 2])
 
-                    st.markdown("---")
+        with col1:
+            analisar = st.button("🔍 Analisar Email", type="primary", use_container_width=True)
 
-                    # Indicadores
-                    renderizar_indicadores(resultado['features'])
+        with col2:
+            limpar = st.button("🗑️ Limpar", use_container_width=True)
 
-                    # Detalhes técnicos (colapsável)
-                    with st.expander("🔬 Detalhes Técnicos", expanded=False):
-                        st.json({
-                            'classificacao': resultado['classificacao'],
-                            'probabilidade_phishing': f"{resultado['confianca'] * 100:.2f}%",
-                            'nivel_risco': resultado['nivel_risco'],
-                            'features_extraidas': resultado['features']
-                        })
+        if limpar:
+            st.rerun()
 
-                    # Timestamp da análise
-                    st.markdown(f"""
-                    <div style="text-align: center; color: #7f8c8d; font-size: 0.85rem; margin-top: 2rem;">
-                        Análise realizada em: {datetime.now().strftime('%d/%m/%Y às %H:%M:%S')}
-                    </div>
-                    """, unsafe_allow_html=True)
+        if analisar:
+            if not texto_email.strip():
+                st.warning("⚠️ Por favor, insira o texto do email para análise.")
+            else:
+                with st.spinner("🔄 Analisando email..."):
+                    try:
+                        resultado = detector.analisar_email(texto_email)
+                        exibir_resultado(resultado)
 
-                except Exception as e:
-                    st.error(f"❌ Erro ao analisar email: {str(e)}")
-                    st.exception(e)
+                        # Salvar no histórico
+                        salvar_analise(texto_email, resultado)
 
-    # Footer
+                        # Mostrar explicação
+                        with st.expander("🔍 Ver Detalhes da Análise"):
+                            st.json(resultado)
+
+                    except Exception as e:
+                        st.error(f"❌ Erro ao analisar email: {e}")
+
+    with tab2:
+        st.subheader("Exemplos de Emails para Teste")
+
+        exemplos = [
+            {
+                "nome": "🚨 Phishing - Conta Suspensa",
+                "texto": "URGENT! Your account will be SUSPENDED immediately! Click here to verify: http://fakephishing.com/verify"
+            },
+            {
+                "nome": "🚨 Phishing - Prêmio Falso",
+                "texto": "Congratulations! You have won $1,000,000! Send your bank details to claim your prize NOW!"
+            },
+            {
+                "nome": "✅ Legítimo - Reunião",
+                "texto": "Hi team, just a reminder that our weekly meeting is scheduled for Tuesday at 2 PM. Please review the attached agenda."
+            },
+            {
+                "nome": "✅ Legítimo - Relatório",
+                "texto": "Dear colleagues, please find attached the quarterly financial report. Let me know if you have any questions."
+            }
+        ]
+
+        for exemplo in exemplos:
+            with st.expander(exemplo["nome"]):
+                st.text_area(
+                    "Texto do email:",
+                    value=exemplo["texto"],
+                    height=100,
+                    key=f"exemplo_{exemplo['nome']}",
+                    disabled=True
+                )
+
+                if st.button(f"Analisar este exemplo", key=f"btn_{exemplo['nome']}"):
+                    with st.spinner("🔄 Analisando..."):
+                        resultado = detector.analisar_email(exemplo["texto"])
+                        exibir_resultado(resultado)
+
+                        # Salvar no histórico
+                        salvar_analise(exemplo["texto"], resultado)
+
+    # Rodapé
+    st.markdown("---")
     st.markdown("""
-    <div class="footer">
-        <strong>⚠️ Aviso Importante:</strong> Este sistema é uma ferramenta de apoio à decisão.<br>
-        Em caso de dúvida sobre a autenticidade de um email, sempre consulte o setor de TI/Segurança.<br><br>
-
-        <strong>🔒 Privacidade:</strong> Nenhum email é armazenado. Todas as análises são processadas 
-        em tempo real e descartadas imediatamente após o resultado.<br><br>
-
-        © 2024 Grings & Filhos LTDA - Todos os direitos reservados
+    <div style="text-align: center; color: #666; padding: 1rem;">
+        <p>🛡️ <strong>Grings & Filhos LTDA</strong> - Sistema de Detecção de Phishing v1.0</p>
+        <p><em>Última atualização: {}</em></p>
     </div>
-    """, unsafe_allow_html=True)
+    """.format(datetime.now().strftime("%Y-%m-%d")), unsafe_allow_html=True)
 
-
-# ============================================
-# EXECUTAR APLICAÇÃO
-# ============================================
 
 if __name__ == "__main__":
     main()
