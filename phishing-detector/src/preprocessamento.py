@@ -10,6 +10,7 @@ from typing import List
 import nltk
 from nltk.corpus import stopwords
 from .cache import CachePreprocessamento
+from multiprocessing import Pool, cpu_count
 
 logger = logging.getLogger(__name__)
 
@@ -161,7 +162,7 @@ class PreprocessadorTexto:
     
     return texto_processado
 
-def _processar_sem_cache(self, texto: str) -> str:
+    def _processar_sem_cache(self, texto: str) -> str:
     """Lógica original de processamento."""
     # Mover toda a lógica atual de processar() para cá
     texto = texto.lower()
@@ -171,20 +172,23 @@ def _processar_sem_cache(self, texto: str) -> str:
     texto = self.remover_stopwords_texto(texto)
     return texto
 
-    def processar_lote(self, textos: List[str]) -> List[str]:
-        """
-        Processa múltiplos textos de uma vez.
-
-        Args:
-            textos: Lista de textos brutos
-
-        Returns:
-            Lista de textos processados
-        """
-        logger.info(f"Processando lote de {len(textos)} textos...")
-        textos_processados = [self.processar(texto) for texto in textos]
-        logger.info("✅ Lote processado com sucesso!")
-        return textos_processados
+    def processar_lote(self, textos: List[str], usar_paralelo: bool = True) -> List[str]:
+    """Processa múltiplos textos em paralelo."""
+    logger.info(f"Processando lote de {len(textos)} textos...")
+    
+    if not usar_paralelo or len(textos) < 100:
+        # Para lotes pequenos, processar sequencialmente
+        return [self.processar(texto) for texto in textos]
+    
+    # ⚡ Processamento paralelo para lotes grandes
+    num_workers = max(1, cpu_count() - 1)  # Deixar 1 core livre
+    logger.info(f"🚀 Usando {num_workers} processos paralelos")
+    
+    with Pool(num_workers) as pool:
+        textos_processados = pool.map(self.processar, textos)
+    
+    logger.info("✅ Lote processado com sucesso!")
+    return textos_processados
 
 
 # Função de conveniência para uso rápido
