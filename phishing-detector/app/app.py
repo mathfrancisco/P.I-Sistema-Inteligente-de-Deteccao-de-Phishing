@@ -7,6 +7,16 @@ import os
 import sys
 import streamlit as st
 from datetime import datetime
+import nltk
+try:
+    nltk.data.find('tokenizers/punkt')
+except LookupError:
+    nltk.download('punkt')
+
+try:
+    nltk.data.find('corpora/stopwords')
+except LookupError:
+    nltk.download('stopwords')
 
 # ⚡ CORREÇÃO: Adicionar o diretório raiz ao path
 # Obtém o diretório do app (app/) e volta para a raiz (phishing-detector/)
